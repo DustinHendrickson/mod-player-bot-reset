@@ -211,7 +211,7 @@ static void ResetBotWithPair(Player* player, uint8 currentLevel, const ResetPair
 }
 
 // -----------------------------------------------------------------------------
-// PLAYER SCRIPT: OnLogin and OnLevelChanged (Modified for Reset Pairs)
+// PLAYER SCRIPT: OnLogin and OnLevelChanged
 // -----------------------------------------------------------------------------
 class ResetBotLevelPlayerScript : public PlayerScript
 {
