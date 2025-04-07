@@ -5,49 +5,52 @@
 ########################################
 #
 #    ResetBotLevel.MaxLevel
-#        Description: The maximum level a bot can reach before being reset to level 1.
+#        Description: The maximum level a bot can reach before being reset.
 #        Default:     80 
 #                     Valid range: 2-80
 ResetBotLevel.MaxLevel   = 80
 
 #    ResetBotLevel.ResetChance
-#        Description: The percent chance a bot has to have their level reset back to 1 when reaching the max specified level or time played.
+#        Description: The percent chance a bot has to have their level reset when reaching a reset trigger.
 #        Default:     100 
 #                     Valid range: 0-100
 ResetBotLevel.ResetChance = 100
 
 #    ResetBotLevel.ScaledChance
-#        Description: If enabled (1), the reset chance will happen every level up and scale based on the
-#                     distance between the bot's level and the set MaxLevel.
-#                     Bots will have a small chance of resetting at lower levels, increasing
-#                     as they approach the max level. At the max level, the reset chance reaches
-#                     the configured ResetBotLevel.ResetChance value.
+#        Description: If enabled (1), the reset chance will scale based on the distance between the bot's level and the reset trigger level.
 #        Default:     0 (disabled)
 #                     Valid values: 0 (off) / 1 (on)
 ResetBotLevel.ScaledChance = 0
 
 #    ResetBotLevel.RestrictTimePlayed
 #        Description: If enabled (1), bots will only have their level reset if they have played
-#                     at least the configured minimum time at the current level when at max level.
+#                     at least the configured minimum time at the current level when at or above a reset trigger.
 #        Default:     0 (disabled)
 #                     Valid values: 0 (off) / 1 (on)
 ResetBotLevel.RestrictTimePlayed = 0
 
 #    ResetBotLevel.MinTimePlayed
-#        Description: If enabled (ResetBotLevel.RestrictTimePlayed) The minimum time (in seconds) that a bot must have
-#                     played at its current level before a reset can occur when at max level.
+#        Description: The minimum time (in seconds) that a bot must have played at its current level
+#                     before a reset can occur when at or above a reset trigger.
 #        Default:     86400 - 1 Day
 ResetBotLevel.MinTimePlayed = 86400
 
 #    ResetBotLevel.PlayedTimeCheckFrequency
-#        Description: If enabled (ResetBotLevel.RestrictTimePlayed) The frequency (in seconds) at which the time played check is
-#                     performed for bots at or above the maximum level.
+#        Description: The frequency (in seconds) at which the time played check is performed for bots at or above a reset trigger.
 #        Default:     60
 ResetBotLevel.PlayedTimeCheckFrequency = 60
 
 #    ResetBotLevel.DebugMode
 #        Description: Enables debug logging for the Reset Bot Level module.
-#                     When enabled, additional log information is displayed to help with debugging.
+#                     When enabled, additional log information is displayed.
 #        Default:     0 (disabled)
 #                     Valid values: 0 (off) / 1 (on)
 ResetBotLevel.DebugMode = 0
+
+#    ResetBotLevel.ResetPairs
+#        Description: A list of reset pairs in the format trigger:target, separated by semicolons.
+#                     When a bot reaches a level greater than or equal to the trigger, it may be reset (or leveled up) to the target.
+#                     For non-Death Knight bots, the target is applied directly.
+#                     For Death Knight bots, if the target is less than 55, they will be reset to 55 instead.
+#        Default:     80:1
+ResetBotLevel.ResetPairs = 80:1
