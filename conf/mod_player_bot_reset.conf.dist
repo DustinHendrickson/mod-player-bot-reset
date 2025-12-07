@@ -71,3 +71,15 @@ ResetBotLevel.PlayedTimeCheckFrequency = 864
 #        Default:     0 (disabled)
 #        Valid values: 0 (off) / 1 (on)
 ResetBotLevel.DebugMode = 0
+
+#    ResetBotLevel.ExcludeNames
+#        Description: Comma-separated list of case insensitive bot names to exclude from reset processing.
+#        Default:     "" (empty)
+ResetBotLevel.ExcludeNames =
+
+#    ResetBotLevel.IgnoreGuildBotsWithRealPlayers
+#        Description: When enabled, bots that are in a guild with at least one real (non-bot) player are excluded
+#                     from bot reset processing and will not be reset.
+#        Default:     0 (disabled)
+#                     Valid values: 0 (disabled) / 1 (enabled)
+ResetBotLevel.IgnoreGuildBotsWithRealPlayers = 0

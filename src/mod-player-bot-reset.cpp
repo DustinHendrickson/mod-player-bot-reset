@@ -15,6 +15,13 @@
 #include "RandomPlayerbotMgr.h"
 #include "ObjectAccessor.h"
 #include "PlayerbotFactory.h"
+#include "DatabaseEnv.h"
+#include <vector>
+#include <string>
+#include <sstream>
+#include <algorithm>
+#include <cctype>
+#include <unordered_set>
 
 // -----------------------------------------------------------------------------
 // GLOBALS: Configuration Values
@@ -32,6 +39,13 @@ static bool  g_ScaledChance          = false;
 static bool  g_RestrictResetByPlayedTime  = false;
 static uint32 g_MinTimePlayed             = 86400;  // in seconds (1 Day)
 static uint32 g_PlayedTimeCheckFrequency  = 864;    // in seconds (default check frequency)
+
+// Exclusion settings
+static bool g_IgnoreGuildBotsWithRealPlayers = false;
+static std::vector<std::string> g_ExcludeBotNames;
+
+// Persistent guild tracker - stores guild IDs that have real players (from database)
+static std::unordered_set<uint32> g_PersistentRealPlayerGuildIds;
 
 // -----------------------------------------------------------------------------
 // LOAD CONFIGURATION USING sConfigMgr
@@ -79,6 +93,19 @@ static void LoadPlayerBotResetConfig()
     g_RestrictResetByPlayedTime = sConfigMgr->GetOption<bool>("ResetBotLevel.RestrictTimePlayed", false);
     g_MinTimePlayed             = sConfigMgr->GetOption<uint32>("ResetBotLevel.MinTimePlayed", 86400);
     g_PlayedTimeCheckFrequency  = sConfigMgr->GetOption<uint32>("ResetBotLevel.PlayedTimeCheckFrequency", 864);
+
+    g_IgnoreGuildBotsWithRealPlayers = sConfigMgr->GetOption<bool>("ResetBotLevel.IgnoreGuildBotsWithRealPlayers", false);
+
+    std::string excludeNames = sConfigMgr->GetOption<std::string>("ResetBotLevel.ExcludeNames", "");
+    g_ExcludeBotNames.clear();
+    std::istringstream f(excludeNames);
+    std::string s;
+    while (getline(f, s, ',')) {
+        s.erase(std::remove_if(s.begin(), s.end(), ::isspace), s.end());
+        if (!s.empty()) {
+            g_ExcludeBotNames.push_back(s);
+        }
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -104,6 +131,141 @@ static bool IsPlayerRandomBot(Player* player)
         return false;
     }
     return sRandomPlayerbotMgr->IsRandomBot(player);
+}
+
+// -----------------------------------------------------------------------------
+// EXCLUSION FUNCTIONS
+// -----------------------------------------------------------------------------
+static bool IsBotExcluded(Player* bot)
+{
+    if (!bot)
+    {
+        return false;
+    }
+    const std::string& name = bot->GetName();
+    for (const auto& excluded : g_ExcludeBotNames)
+    {
+        if (excluded == name)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool BotInGuildWithRealPlayer(Player* bot)
+{
+    if (!bot || !bot->IsInWorld())
+    {
+        return false;
+    }
+    uint32 guildId = bot->GetGuildId();
+    if (guildId == 0)
+    {
+        return false;
+    }
+
+    // Check online players for real players in the same guild
+    auto const& allPlayers = ObjectAccessor::GetPlayers();
+    for (auto const& itr : allPlayers)
+    {
+        Player* player = itr.second;
+        if (!player || !player->IsInWorld())
+            continue;
+
+        if (!IsPlayerBot(player) && player->GetGuildId() == guildId)
+        {
+            return true;
+        }
+    }
+
+    // Check persistent storage for offline real players
+    return g_PersistentRealPlayerGuildIds.count(guildId) > 0;
+}
+
+// -----------------------------------------------------------------------------
+// PERSISTENT GUILD TRACKING FUNCTIONS
+// -----------------------------------------------------------------------------
+static void LoadPersistentGuildTracker()
+{
+    g_PersistentRealPlayerGuildIds.clear();
+    QueryResult result = CharacterDatabase.Query("SELECT guild_id FROM bot_reset_guild_tracker WHERE has_real_players = 1");
+
+    if (!result)
+    {
+        if (g_DebugMode)
+        {
+            LOG_INFO("server.loading", "[mod-player-bot-reset] No guilds with real players found in persistent storage.");
+        }
+        return;
+    }
+
+    if (g_DebugMode)
+    {
+        LOG_INFO("server.loading", "[mod-player-bot-reset] Loading persistent guild tracker data from database...");
+    }
+
+    do
+    {
+        uint32 guildId = result->Fetch()->Get<uint32>();
+        g_PersistentRealPlayerGuildIds.insert(guildId);
+        if (g_DebugMode)
+        {
+            LOG_INFO("server.loading", "[mod-player-bot-reset] Loaded guild {} as having real players.", guildId);
+        }
+    } while (result->NextRow());
+
+    if (g_DebugMode)
+    {
+        LOG_INFO("server.loading", "[mod-player-bot-reset] Loaded {} guilds with real players from persistent storage.", g_PersistentRealPlayerGuildIds.size());
+    }
+}
+
+static void UpdatePersistentGuildTracker()
+{
+    if (g_DebugMode)
+    {
+        LOG_INFO("server.loading", "[mod-player-bot-reset] Starting persistent guild tracker update...");
+    }
+
+    // Find guilds with currently online real players
+    std::unordered_set<uint32> currentRealPlayerGuilds;
+
+    const auto& allPlayers = ObjectAccessor::GetPlayers();
+    for (const auto& itr : allPlayers)
+    {
+        Player* player = itr.second;
+        if (!player || !player->IsInWorld())
+            continue;
+
+        if (!IsPlayerBot(player))
+        {
+            uint32 guildId = player->GetGuildId();
+            if (guildId != 0)
+            {
+                currentRealPlayerGuilds.insert(guildId);
+            }
+        }
+    }
+
+    // Update or insert guilds with real players - ensure has_real_players is set to 1
+    for (uint32 guildId : currentRealPlayerGuilds)
+    {
+        CharacterDatabase.Execute(
+            "REPLACE INTO bot_reset_guild_tracker (guild_id, has_real_players) "
+            "VALUES ({}, 1)",
+            guildId
+        );
+
+        // Add to our in-memory cache
+        g_PersistentRealPlayerGuildIds.insert(guildId);
+    }
+
+    if (g_DebugMode)
+    {
+        LOG_INFO("server.loading", "[mod-player-bot-reset] Persistent guild tracker update complete. {} total tracked guilds.",
+                 g_PersistentRealPlayerGuildIds.size());
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -209,6 +371,21 @@ public:
             return;
         }
 
+        // Check exclusions
+        if (IsBotExcluded(player))
+        {
+            if (g_DebugMode)
+                LOG_INFO("server.loading", "[mod-player-bot-reset] OnPlayerLogin: Bot '{}' is in exclusion list. Skipping reset check.", player->GetName());
+            return;
+        }
+
+        if (g_IgnoreGuildBotsWithRealPlayers && BotInGuildWithRealPlayer(player))
+        {
+            if (g_DebugMode)
+                LOG_INFO("server.loading", "[mod-player-bot-reset] OnPlayerLogin: Bot '{}' is in guild with real players. Skipping reset check.", player->GetName());
+            return;
+        }
+
         uint8 currentLevel = player->GetLevel();
 
         // Check for MaxLevel condition
@@ -270,6 +447,21 @@ public:
         {
             if (g_DebugMode)
                 LOG_INFO("server.loading", "[mod-player-bot-reset] OnLevelChanged: Player '{}' is not a random bot. Skipping reset check.", player->GetName());
+            return;
+        }
+
+        // Check exclusions
+        if (IsBotExcluded(player))
+        {
+            if (g_DebugMode)
+                LOG_INFO("server.loading", "[mod-player-bot-reset] OnLevelChanged: Bot '{}' is in exclusion list. Skipping reset check.", player->GetName());
+            return;
+        }
+
+        if (g_IgnoreGuildBotsWithRealPlayers && BotInGuildWithRealPlayer(player))
+        {
+            if (g_DebugMode)
+                LOG_INFO("server.loading", "[mod-player-bot-reset] OnLevelChanged: Bot '{}' is in guild with real players. Skipping reset check.", player->GetName());
             return;
         }
 
@@ -336,7 +528,8 @@ public:
     void OnStartup() override
     {
         LoadPlayerBotResetConfig();
-        LOG_INFO("server.loading", "[mod-player-bot-reset] Loaded and active with MaxLevel = {} ({}), ResetToLevel = {}, SkipFromLevel = {} ({}), SkipToLevel = {}, ResetChance = {}%, ScaledChance = {}.",
+        LoadPersistentGuildTracker();
+        LOG_INFO("server.loading", "[mod-player-bot-reset] Loaded and active with MaxLevel = {} ({}), ResetToLevel = {}, SkipFromLevel = {} ({}), SkipToLevel = {}, ResetChance = {}%, ScaledChance = {}, IgnoreGuildBotsWithRealPlayers = {}, ExcludedNames = {}.",
                  static_cast<int>(g_ResetBotMaxLevel),
                  g_ResetBotMaxLevel > 0 ? "Enabled" : "Disabled",
                  static_cast<int>(g_ResetToLevel),
@@ -344,7 +537,9 @@ public:
                  g_SkipFromLevel > 0 ? "Enabled" : "Disabled",
                  static_cast<int>(g_SkipToLevel),
                  static_cast<int>(g_ResetBotChancePercent),
-                 g_ScaledChance ? "Enabled" : "Disabled");
+                 g_ScaledChance ? "Enabled" : "Disabled",
+                 g_IgnoreGuildBotsWithRealPlayers ? "Enabled" : "Disabled",
+                 g_ExcludeBotNames.empty() ? "None" : std::to_string(g_ExcludeBotNames.size()) + " names");
     }
 };
 
@@ -384,6 +579,13 @@ public:
             if (!IsPlayerBot(candidate) || !IsPlayerRandomBot(candidate))
                 continue;
 
+            // Check exclusions
+            if (IsBotExcluded(candidate))
+                continue;
+
+            if (g_IgnoreGuildBotsWithRealPlayers && BotInGuildWithRealPlayer(candidate))
+                continue;
+
             uint8 currentLevel = candidate->GetLevel();
             if (currentLevel < g_ResetBotMaxLevel)
                 continue;
@@ -421,6 +623,33 @@ private:
 };
 
 // -----------------------------------------------------------------------------
+// WORLD SCRIPT: Update Guild Tracker
+// -----------------------------------------------------------------------------
+class ResetBotGuildTrackerWorldScript : public WorldScript
+{
+public:
+    ResetBotGuildTrackerWorldScript() : WorldScript("ResetBotGuildTrackerWorldScript"), m_timer(0) { }
+
+    void OnUpdate(uint32 diff) override
+    {
+        // Only update if guild checking is enabled
+        if (!g_IgnoreGuildBotsWithRealPlayers)
+            return;
+
+        m_timer += diff;
+        // Update every 10 minutes (600 seconds)
+        if (m_timer < 600 * 1000)
+            return;
+        m_timer = 0;
+
+        UpdatePersistentGuildTracker();
+    }
+
+private:
+    uint32 m_timer;
+};
+
+// -----------------------------------------------------------------------------
 // ENTRY POINT: Register Scripts
 // -----------------------------------------------------------------------------
 void Addmod_player_bot_resetScripts()
@@ -428,4 +657,5 @@ void Addmod_player_bot_resetScripts()
     new ResetBotLevelWorldScript();
     new ResetBotLevelPlayerScript();
     new ResetBotLevelTimeCheckWorldScript();
+    new ResetBotGuildTrackerWorldScript();
 }
