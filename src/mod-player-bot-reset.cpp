@@ -300,6 +300,12 @@ static void ResetBot(Player* player, uint8 currentLevel)
     if (player->getClass() == CLASS_DEATH_KNIGHT && g_ResetToLevel < 55)
         levelToResetTo = 55;
 
+    // Dismount before randomization to prevent wrong mount at new level
+    if (player->IsMounted())
+    {
+        player->Dismount();
+    }
+
     PlayerbotFactory newFactory(player, levelToResetTo);
 
     newFactory.Randomize(false);
@@ -326,6 +332,12 @@ static void SkipBotLevel(Player* player, uint8 currentLevel)
     // If the configured skip level is below 55 and this is a Death Knight, use 55 instead
     if (player->getClass() == CLASS_DEATH_KNIGHT && g_SkipToLevel < 55)
         levelToSkipTo = 55;
+
+    // Dismount before randomization to prevent wrong mount at new level
+    if (player->IsMounted())
+    {
+        player->Dismount();
+    }
 
     PlayerbotFactory newFactory(player, levelToSkipTo);
     newFactory.Randomize(false);

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This module for **AzerothCore** resets the level of **player bots** when they exceed a configurable maximum level. It supports **random player bots** and integrates with the **AutoMaintenanceOnLevelupAction** system to reinitialize the bot's state upon reset.
+This module for **AzerothCore** resets the level of **player bots** when they exceed a configurable maximum level. It supports **random player bots** and uses the **PlayerbotFactory.Randomize()** function to properly reinitialize the bot's state, equipment, and abilities at the new level.
 
 ## Features
 
@@ -12,8 +12,7 @@ This module for **AzerothCore** resets the level of **player bots** when they ex
 - **Configurable Reset Chance**: Specify the percentage chance for a bot's level to reset upon reaching the maximum level.
 - **Scaled Reset Chance**: Optionally enable per-level checks where the reset chance scales dynamically as the bot levels up. The chance increases as the bot approaches the maximum level, reaching the configured Reset Chance at the maximum.
 - **Support for Random Bots**: Applies only to bots managed by `RandomPlayerbotMgr`.
-- **Auto Equipment Reset**: Destroys all equipped items when resetting a bot.
-- **Auto Maintenance Execution**: Executes `AutoMaintenanceOnLevelupAction` after a reset to ensure proper bot initialization.
+- **Proper Bot Reinitialization**: Uses `PlayerbotFactory.Randomize()` to reset equipment, abilities, and bot state appropriate for the new level.
 - **Death Knight Support**: For Death Knight bots, resets the level to 55 or higher.
 - **Time-Played Based Reset**: When enabled, bots at or above the maximum level are reset only if they have accumulated a minimum amount of played time at that level. This check is performed periodically via an OnUpdate handler.
 - **Bot Name Exclusion**: Optionally exclude specific bots from reset processing by name.
@@ -79,7 +78,7 @@ To enable detailed debug logging, modify the configuration as follows:
 ResetBotLevel.DebugMode = 1
 ```
 
-This will output detailed logs for actions such as bot resets, item destruction, and auto maintenance execution.
+This will output detailed logs for actions such as bot resets, randomization, and level changes.
 
 ## License
 
