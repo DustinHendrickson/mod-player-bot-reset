@@ -119,7 +119,7 @@ static bool IsPlayerBot(Player* player)
         return false;
     }
 
-    PlayerbotAI* botAI = sPlayerbotsMgr->GetPlayerbotAI(player);
+    PlayerbotAI* botAI = sPlayerbotsMgr.GetPlayerbotAI(player);
     return botAI && botAI->IsBotAI();
 }
 
@@ -130,7 +130,7 @@ static bool IsPlayerRandomBot(Player* player)
         LOG_ERROR("server.loading", "[mod-player-bot-reset] IsPlayerRandomBot called with nullptr.");
         return false;
     }
-    return sRandomPlayerbotMgr->IsRandomBot(player);
+    return sRandomPlayerbotMgr.IsRandomBot(player);
 }
 
 // -----------------------------------------------------------------------------
@@ -312,7 +312,7 @@ static void ResetBot(Player* player, uint8 currentLevel)
 
     if (g_DebugMode)
     {
-        PlayerbotAI* botAI = sPlayerbotsMgr->GetPlayerbotAI(player);
+        PlayerbotAI* botAI = sPlayerbotsMgr.GetPlayerbotAI(player);
         std::string playerClassName = botAI ? botAI->GetChatHelper()->FormatClass(player->getClass()) : "Unknown";
         LOG_INFO("server.loading", "[mod-player-bot-reset] ResetBot: Bot '{}' - {} at level {} was reset to level {}.",
                  player->GetName(), playerClassName, currentLevel, levelToResetTo);
@@ -344,7 +344,7 @@ static void SkipBotLevel(Player* player, uint8 currentLevel)
 
     if (g_DebugMode)
     {
-        PlayerbotAI* botAI = sPlayerbotsMgr->GetPlayerbotAI(player);
+        PlayerbotAI* botAI = sPlayerbotsMgr.GetPlayerbotAI(player);
         std::string playerClassName = botAI ? botAI->GetChatHelper()->FormatClass(player->getClass()) : "Unknown";
         LOG_INFO("server.loading", "[mod-player-bot-reset] SkipBotLevel: Bot '{}' - {} at level {} was skipped to level {}.",
                  player->GetName(), playerClassName, currentLevel, levelToSkipTo);
